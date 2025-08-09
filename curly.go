@@ -16,8 +16,20 @@ import (
 type CurlyRouter struct{}
 
 var (
-	regexCache sync.Map // Cache for compiled regex patterns
+	regexCache       sync.Map // Cache for compiled regex patterns
+	regexCacheEnabled = true  // Enable/disable regex caching
 )
+
+// SetRegexCacheEnabled enables or disables regex pattern caching for CurlyRouter.
+// When disabled, regex patterns will be compiled on every request.
+// When enabled (default), compiled regex patterns are cached for better performance.
+func SetRegexCacheEnabled(enabled bool) {
+	regexCacheEnabled = enabled
+	if !enabled {
+		// Clear existing cache when disabling
+		regexCache = sync.Map{}
+	}
+}
 
 // SelectRoute is part of the Router interface and returns the best match
 // for the WebService and its Route for the given Request.
@@ -119,19 +131,26 @@ func (c CurlyRouter) regularMatchesPathToken(routeToken string, colon int, reque
 		return true, true
 	}
 	
-	// Check cache first
-	if cached, found := regexCache.Load(regPart); found {
-		regex := cached.(*regexp.Regexp)
-		matched := regex.MatchString(requestToken)
-		return matched, false
+	// Check cache first (if enabled)
+	if regexCacheEnabled {
+		if cached, found := regexCache.Load(regPart); found {
+			regex := cached.(*regexp.Regexp)
+			matched := regex.MatchString(requestToken)
+			return matched, false
+		}
 	}
 	
-	// Compile and cache the regex
+	// Compile the regex
 	regex, err := regexp.Compile(regPart)
 	if err != nil {
 		return false, false
 	}
-	regexCache.Store(regPart, regex)
+	
+	// Cache the regex (if enabled)
+	if regexCacheEnabled {
+		regexCache.Store(regPart, regex)
+	}
+	
 	matched := regex.MatchString(requestToken)
 	return matched, false
 }

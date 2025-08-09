@@ -309,3 +309,46 @@ func TestRegexCaching(t *testing.T) {
 		t.Error("Expected name pattern to be cached")
 	}
 }
+
+func TestRegexCacheDisabled(t *testing.T) {
+	// Store original state
+	originalEnabled := regexCacheEnabled
+	defer func() {
+		SetRegexCacheEnabled(originalEnabled)
+	}()
+	
+	// Disable caching
+	SetRegexCacheEnabled(false)
+	
+	router := CurlyRouter{}
+	routeToken := "{id:[0-9]+}"
+	requestToken := "123"
+	
+	// Call should work but not cache
+	matches, _ := router.regularMatchesPathToken(routeToken, 3, requestToken)
+	if !matches {
+		t.Error("Expected call to match")
+	}
+	
+	// Verify pattern is not cached
+	pattern := "[0-9]+"
+	_, found := regexCache.Load(pattern)
+	if found {
+		t.Error("Expected pattern to not be cached when caching is disabled")
+	}
+	
+	// Re-enable caching
+	SetRegexCacheEnabled(true)
+	
+	// Now it should cache
+	matches2, _ := router.regularMatchesPathToken(routeToken, 3, requestToken)
+	if !matches2 {
+		t.Error("Expected call to match")
+	}
+	
+	// Verify pattern is now cached
+	_, found2 := regexCache.Load(pattern)
+	if !found2 {
+		t.Error("Expected pattern to be cached when caching is re-enabled")
+	}
+}
